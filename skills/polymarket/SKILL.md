@@ -17,34 +17,39 @@ Access prediction market data from Polymarket without bloating context.
 ## Quick Start
 
 ```bash
-# Search for markets
+# Single API calls
 node skills/polymarket/scripts/search-markets.js "bitcoin 100k"
-
-# Get market by slug
 node skills/polymarket/scripts/get-market.js will-bitcoin-hit-100k-2025
 
-# Get orderbook
-node skills/polymarket/scripts/get-orderbook.js TOKEN_ID
-
-# Get price history
-node skills/polymarket/scripts/get-prices.js TOKEN_ID --days 7
-
-# Calculate trading edge
-node skills/polymarket/scripts/calculate-edge.js TOKEN_ID --prediction 0.75
+# Compound API calls (multiple APIs, clean output)
+node skills/polymarket/scripts/analyze-market-full.js will-bitcoin-hit-100k-2025
+node skills/polymarket/scripts/get-market-for-mirofish.js "fed rate"
 ```
 
 ## Scripts
 
-| Script | Purpose | Example |
-|--------|---------|---------|
-| `search-markets.js` | Find markets by keyword | `search-markets.js "fed rate"` |
-| `get-market.js` | Get market details by slug | `get-market.js will-bitcoin-hit-100k-2025` |
-| `get-orderbook.js` | Get current orderbook | `get-orderbook.js TOKEN_ID` |
-| `get-prices.js` | Get historical prices | `get-prices.js TOKEN_ID --days 30` |
-| `get-midpoint.js` | Get current fair price | `get-midpoint.js TOKEN_ID` |
-| `list-active.js` | List top active markets | `list-active.js --limit 20` |
-| `calculate-edge.js` | Compare prediction to market | `calculate-edge.js TOKEN_ID -p 0.65` |
-| `watch-market.js` | Poll market for changes | `watch-market.js TOKEN_ID --interval 30` |
+### Single API Calls (Atomic)
+
+| Script | Purpose | APIs Called |
+|--------|---------|-------------|
+| `search-markets.js` | Find markets by keyword | 1x Gamma |
+| `get-market.js` | Get market details by slug | 1x Gamma |
+| `get-orderbook.js` | Get current orderbook | 1x CLOB |
+| `get-midpoint.js` | Get current fair price | 1x CLOB |
+| `get-prices.js` | Get historical prices | 1x Data |
+| `list-active.js` | List top active markets | 1x Gamma |
+| `calculate-edge.js` | Compare prediction to market | 1x CLOB |
+| `watch-market.js` | Poll market for changes | 1x CLOB (repeated) |
+
+### Compound API Calls (Multi-API, Clean Output)
+
+| Script | Purpose | APIs Called | Use Case |
+|--------|---------|-------------|----------|
+| `analyze-market-full.js` | Complete market snapshot | Gamma + CLOB + Data | Trading analysis |
+| `find-opportunities.js` | Scan for moving markets | 1x Gamma + Nx CLOB | Discover opportunities |
+| `monitor-market.js` | Smart change detection | 2x CLOB (per poll) | Alert on significant moves |
+| `compare-markets.js` | Compare related markets | Nx Gamma + Nx CLOB | Arbitrage analysis |
+| `get-market-for-mirofish.js` | MiroFish-ready context | Gamma + CLOB + Data | Simulation setup |
 
 ## Data Sources
 
@@ -52,18 +57,57 @@ node skills/polymarket/scripts/calculate-edge.js TOKEN_ID --prediction 0.75
 - **CLOB API**: `https://clob.polymarket.com` (orderbook, prices)
 - **Data API**: `https://data-api.polymarket.com` (historical data)
 
-## Output Format
+## Output Philosophy
 
-All scripts output clean JSON for easy parsing:
+**Single calls:** Return raw API response (clean, minimal)
 
+**Compound calls:** Transform multiple API responses into structured analysis:
+- Remove redundant fields
+- Calculate derived metrics (spreads, trends, correlations)
+- Add interpretive analysis (trend direction, volatility, recommendations)
+- Single coherent JSON output
+
+## Example: Compound Script Output
+
+### analyze-market-full.js
 ```json
 {
-  "market": "Will Bitcoin hit $100k in 2025?",
-  "yesPrice": 0.35,
-  "noPrice": 0.65,
-  "volume": "1500000.50",
-  "liquidity": "250000.00",
-  "tokenId": "71321045679252212594626385532706912750332728571942532289631379312455583992563"
+  "summary": {
+    "question": "Will Bitcoin hit $100k in 2025?",
+    "category": "Crypto"
+  },
+  "pricing": {
+    "current": 0.35,
+    "impliedProbability": 35,
+    "trend": "rising",
+    "spread": 0.02
+  },
+  "analysis": {
+    "liquidityScore": "high",
+    "volatility": "medium",
+    "tradingOpportunity": "wide_spread"
+  }
+}
+```
+
+### get-market-for-mirofish.js
+```json
+{
+  "mirofishContext": {
+    "seedDocument": {
+      "title": "...",
+      "question": "..."
+    },
+    "marketData": {
+      "currentOdds": {...},
+      "trading": {...},
+      "history": {...}
+    },
+    "simulationParameters": {
+      "suggestedRounds": 40,
+      "notes": "Rising sentiment, high volatility"
+    }
+  }
 }
 ```
 
