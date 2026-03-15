@@ -1,18 +1,27 @@
 # Polymarket API Reference (TypeScript)
 
+> ⚠️ **WARNING: This documentation is based on the official SDK and may be outdated.**
+> 
+> For tested, working examples with real API responses, see:
+> - **[API_REFERENCE_TESTED.md](./API_REFERENCE_TESTED.md)** - Updated schemas from actual testing
+> - **[PENDING_TODOS.md](../../PENDING_TODOS.md)** - Known issues and workarounds
+>
+> **Key Issues Found:**
+> - Data API currently returns non-JSON (broken)
+> - Token IDs are in `clobTokenIds` JSON string, not `tokens` array
+> - Many markets have no CLOB orderbook despite having token IDs
+
 Complete guide to Polymarket APIs for market data collection.
 
 ---
 
 ## API Overview
 
-Polymarket provides three main APIs:
-
-| API | URL | Purpose | Auth Required |
-|-----|-----|---------|---------------|
-| **Gamma API** | `https://gamma-api.polymarket.com` | Markets, events, tags | ❌ No |
-| **Data API** | `https://data-api.polymarket.com` | Positions, trades, analytics | ❌ No |
-| **CLOB API** | `https://clob.polymarket.com` | Orderbook, trading | ⚠️ Partial (trading only) |
+| API | URL | Purpose | Auth Required | Status |
+|-----|-----|---------|---------------|--------|
+| **Gamma API** | `https://gamma-api.polymarket.com` | Markets, events, tags | ❌ No | ✅ Working |
+| **Data API** | `https://data-api.polymarket.com` | Positions, trades, analytics | ❌ No | ❌ Broken |
+| **CLOB API** | `https://clob.polymarket.com` | Orderbook, trading | ⚠️ Partial (trading only) | ✅ Working |
 
 ---
 
@@ -57,6 +66,8 @@ export type Side = 'BUY' | 'SELL';
 
 **Purpose:** List all active prediction markets with metadata.
 
+> ⚠️ **Note:** The `?active=true&closed=false` filter currently returns empty results. Use search instead.
+
 ```typescript
 // src/apis/gamma.ts
 import axios from 'axios';
@@ -88,10 +99,16 @@ export interface GammaMarket {
   bestBid: string | null;
   bestAsk: string | null;
   lastTradePrice: string | null;
+  /** Token IDs for CLOB API - PARSE THIS JSON STRING */
+  clobTokenIds: string; // "[\"token1\", \"token2\"]"
+  /** 24h price change from Gamma */
+  oneDayPriceChange: number;
+  /** 7d price change from Gamma */
+  oneWeekPriceChange: number;
   tokens: {
     outcome: string;
     price: number;
-    token_id: string;
+    token_id: string | null; // Often null, use clobTokenIds instead
   }[];
   /** Whether this is a negative risk market */
   negRisk?: boolean;
@@ -110,8 +127,7 @@ export async function getActiveEvents(
     `${POLYMARKET_CONFIG.gamma.baseUrl}/events`,
     {
       params: {
-        active: true,
-        closed: false,
+        // Note: active=true filter may return empty - use search instead
         limit,
         offset,
         order: 'volume_24hr',
@@ -121,6 +137,32 @@ export async function getActiveEvents(
   );
   return response.data;
 }
+```
+
+**Helper Functions:**
+
+```typescript
+// Parse the JSON strings from Gamma API
+export function parseOutcomePrices(pricesJson: string): number[] {
+  try {
+    return JSON.parse(pricesJson);
+  } catch {
+    return [];
+  }
+}
+
+export function parseClobTokenIds(clobTokenIdsJson: string): string[] {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
+// Usage:
+const market = event.markets[0];
+const [yesTokenId, noTokenId] = parseClobTokenIds(market.clobTokenIds);
+const [yesPrice, noPrice] = parseOutcomePrices(market.outcomePrices);
 ```
 
 **Request:**
@@ -151,16 +193,14 @@ const events = await getActiveEvents(50);
         "bestBid": "0.34",
         "bestAsk": "0.36",
         "lastTradePrice": "0.35",
+        "clobTokenIds": "[\"7132104567925...\", \"4834343204537...\"]",
+        "oneDayPriceChange": 0.02,
+        "oneWeekPriceChange": -0.05,
         "tokens": [
           {
             "outcome": "Yes",
             "price": 0.35,
-            "token_id": "71321045679252212594626385532706912750332728571942532289631379312455583992563"
-          },
-          {
-            "outcome": "No",
-            "price": 0.65,
-            "token_id": "48343432045371682931373849999999999999999999999999999999999999999999999999999"
+            "token_id": null  // Use clobTokenIds instead!
           }
         ]
       }
@@ -175,58 +215,37 @@ const events = await getActiveEvents(50);
 
 ---
 
-### Get Market by Slug
+## Data API (Historical Prices)
 
-**Endpoint:** `GET /events/slug/{slug}`
+> ⚠️ **STATUS: CURRENTLY BROKEN**
+> 
+> The Data API is returning non-JSON responses as of testing.
+> 
+> **Alternative:** Use `oneDayPriceChange` and `oneWeekPriceChange` from Gamma API market data.
 
-**Purpose:** Fetch specific market by URL slug.
+### Get Market Prices History
 
+**Endpoint:** `GET /prices-history`
+
+**Status:** ❌ Not working - returns non-JSON
+
+**Planned Usage:**
 ```typescript
-export async function getMarketBySlug(
-  slug: string
-): Promise<GammaEvent | null> {
-  try {
-    const response = await axios.get(
-      `${POLYMARKET_CONFIG.gamma.baseUrl}/events/slug/${slug}`
-    );
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return null;
-    }
-    throw error;
-  }
-}
-```
-
-**Request:**
-```typescript
-const market = await getMarketBySlug('will-bitcoin-hit-100k-2025');
-```
-
-**Response:** Single `GammaEvent` object (same structure as above).
-
----
-
-### Search Markets
-
-**Endpoint:** `GET /events`
-
-**Purpose:** Find markets by keyword.
-
-```typescript
-export async function searchMarkets(
-  query: string,
-  limit: number = 20
-): Promise<GammaEvent[]> {
+// Currently broken - do not use
+export async function getPriceHistory(
+  marketId: string,
+  startDate: string,
+  endDate: string
+): Promise<PricePoint[]> {
+  // This will fail - API returns non-JSON
   const response = await axios.get(
-    `${POLYMARKET_CONFIG.gamma.baseUrl}/events`,
+    `${POLYMARKET_CONFIG.data.baseUrl}/prices-history`,
     {
       params: {
-        active: true,
-        closed: false,
-        search: query,
-        limit,
+        market: marketId,
+        startDate,
+        endDate,
+        fidelity: 'hourly',
       },
     }
   );
@@ -234,45 +253,12 @@ export async function searchMarkets(
 }
 ```
 
-**Request:**
+**Workaround using Gamma API:**
 ```typescript
-const results = await searchMarkets('fed rate', 10);
-```
-
----
-
-### Get Markets by Tag
-
-**Endpoint:** `GET /events`
-
-**Purpose:** Filter markets by category tag.
-
-```typescript
-export async function getMarketsByTag(
-  tagId: string,
-  limit: number = 50
-): Promise<GammaEvent[]> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.gamma.baseUrl}/events`,
-    {
-      params: {
-        active: true,
-        closed: false,
-        tag_id: tagId,
-        limit,
-      },
-    }
-  );
-  return response.data;
-}
-
-// Get available tags
-export async function getTags(): Promise<{ id: string; label: string }[]> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.gamma.baseUrl}/tags`
-  );
-  return response.data;
-}
+// Use price changes from Gamma instead
+const market = await getMarketBySlug(slug);
+const change24h = market.oneDayPriceChange;  // e.g., 0.02 (2%)
+const change7d = market.oneWeekPriceChange;  // e.g., -0.05 (-5%)
 ```
 
 ---
@@ -281,20 +267,23 @@ export async function getTags(): Promise<{ id: string; label: string }[]> {
 
 ### Get Orderbook
 
-**Endpoint:** `GET /book`
+**Endpoint:** `GET /book?token_id={tokenId}`
 
 **Purpose:** Full orderbook for a specific token.
 
-```typescript
-// src/apis/clob.ts
-import axios from 'axios';
-import { POLYMARKET_CONFIG } from '../config/polymarket';
+> ⚠️ **Note:** Many markets return `{"error":"No orderbook exists..."}` even with valid token IDs. Markets need liquidity to have orderbooks.
 
+```typescript
 export interface OrderBook {
-  market: string; // token_id
+  market: string;        // Condition ID
+  asset_id: string;      // Token ID
+  timestamp: string;
   bids: OrderBookLevel[];
   asks: OrderBookLevel[];
-  timestamp: string;
+  min_order_size: string;
+  tick_size: string;
+  neg_risk: boolean;
+  last_trade_price: string;
 }
 
 export interface OrderBookLevel {
@@ -315,190 +304,35 @@ export async function getOrderBook(
 }
 ```
 
-**Request:**
-```typescript
-const book = await getOrderBook(
-  '71321045679252212594626385532706912750332728571942532289631379312455583992563'
-);
+**Working Token ID Example:**
+```
+33799186820745984796925628555218896548353763534512103584425851114581900224385
 ```
 
 **Response:**
 ```json
 {
-  "market": "71321045679252212594626385532706912750332728571942532289631379312455583992563",
+  "market": "0x9b3c3177fe473124c756b01e123b4b03e3a99880844ed8dea21b0a7879ca04aa",
+  "asset_id": "33799186820745984796925628555218896548353763534512103584425851114581900224385",
+  "timestamp": "1773596078108",
   "bids": [
-    { "price": "0.34", "size": "1500.50" },
-    { "price": "0.33", "size": "2500.00" },
-    { "price": "0.32", "size": "5000.00" }
+    { "price": "0.001", "size": "6535" },
+    { "price": "0.002", "size": "5075.29" }
   ],
   "asks": [
-    { "price": "0.36", "size": "800.25" },
-    { "price": "0.37", "size": "1200.00" },
-    { "price": "0.38", "size": "3000.00" }
+    { "price": "0.999", "size": "1040.04" },
+    { "price": "0.998", "size": "10.37" }
   ],
-  "timestamp": "2024-03-15T10:30:00.000Z"
+  "min_order_size": "5",
+  "tick_size": "0.001",
+  "neg_risk": false,
+  "last_trade_price": "0.017"
 }
 ```
 
-**Semantics:**
-- `bids`: Orders to BUY (you sell at these prices)
-- `asks`: Orders to SELL (you buy at these prices)
-- Prices are in USDC (0.34 = $0.34 per share)
-- Size is number of shares
-
----
-
-### Get Midpoint Price
-
-**Endpoint:** `GET /midpoint`
-
-**Purpose:** Current fair price (average of best bid/ask).
-
-```typescript
-export async function getMidpoint(tokenId: string): Promise<number | null> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.clob.baseUrl}/midpoint`,
-    {
-      params: { token_id: tokenId },
-    }
-  );
-  return response.data.mid ?? null;
-}
-```
-
-**Request:**
-```typescript
-const mid = await getMidpoint(tokenId);
-// Returns: 0.35 (or null if no orders)
-```
-
----
-
-### Get Price for Side
-
-**Endpoint:** `GET /price`
-
-**Purpose:** Best available price for BUY or SELL.
-
-```typescript
-export async function getPrice(
-  tokenId: string,
-  side: 'BUY' | 'SELL'
-): Promise<number | null> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.clob.baseUrl}/price`,
-    {
-      params: { 
-        token_id: tokenId,
-        side: side,
-      },
-    }
-  );
-  return response.data.price ?? null;
-}
-
-// Usage
-const buyPrice = await getPrice(tokenId, 'BUY');  // Best ask
-const sellPrice = await getPrice(tokenId, 'SELL'); // Best bid
-```
-
----
-
-### Get Last Trade Price
-
-**Endpoint:** `GET /last_trade_price`
-
-**Purpose:** Most recent trade price.
-
-```typescript
-export async function getLastTradePrice(
-  tokenId: string
-): Promise<number | null> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.clob.baseUrl}/last_trade_price`,
-    {
-      params: { token_id: tokenId },
-    }
-  );
-  return response.data.price ?? null;
-}
-```
-
----
-
-### Get Market Trades
-
-**Endpoint:** `GET /trades`
-
-**Purpose:** Recent trades for a market.
-
-```typescript
-export interface Trade {
-  transaction_hash: string;
-  timestamp: string;
-  price: string;
-  size: string;
-  side: 'BUY' | 'SELL';
-  maker_address: string;
-  taker_address: string;
-}
-
-export async function getRecentTrades(
-  tokenId: string,
-  limit: number = 20
-): Promise<Trade[]> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.clob.baseUrl}/trades`,
-    {
-      params: { 
-        token_id: tokenId,
-        limit,
-      },
-    }
-  );
-  return response.data.trades;
-}
-```
-
----
-
-## Data API (Analytics)
-
-### Get Market Prices History
-
-**Endpoint:** `GET /prices-history`
-
-**Purpose:** Historical price data for charting.
-
-```typescript
-// src/apis/data.ts
-import axios from 'axios';
-import { POLYMARKET_CONFIG } from '../config/polymarket';
-
-export interface PricePoint {
-  timestamp: string;
-  price: number;
-  volume: number;
-}
-
-export async function getPriceHistory(
-  marketId: string,
-  startDate: string, // ISO 8601
-  endDate: string
-): Promise<PricePoint[]> {
-  const response = await axios.get(
-    `${POLYMARKET_CONFIG.data.baseUrl}/prices-history`,
-    {
-      params: {
-        market: marketId,
-        startDate,
-        endDate,
-        fidelity: 'hourly', // or 'daily', 'weekly'
-      },
-    }
-  );
-  return response.data;
-}
+**Error Response:**
+```json
+{"error": "No orderbook exists for the requested token id"}
 ```
 
 ---
@@ -507,36 +341,29 @@ export async function getPriceHistory(
 
 ```typescript
 // src/services/market-data.ts
-import { getActiveEvents, GammaMarket } from '../apis/gamma';
-import { getOrderBook, getMidpoint, getRecentTrades } from '../apis/clob';
+import { getActiveEvents, parseClobTokenIds, parseOutcomePrices } from '../apis/gamma';
+import { getOrderBook, getMidpoint } from '../apis/clob';
 
 export interface EnrichedMarket {
   // From Gamma
   id: string;
   question: string;
   slug: string;
-  description: string;
   category: string;
   
-  // From CLOB
+  // From CLOB (may be null if no orderbook)
   bestBid: number | null;
   bestAsk: number | null;
   midpoint: number | null;
   spread: number | null;
-  volume24h: number;
-  liquidity: number;
   
-  // Token IDs for trading
-  yesTokenId: string;
-  noTokenId: string;
+  // From Gamma (use instead of Data API)
+  change24h: number | null;
+  change7d: number | null;
   
-  // Recent activity
-  recentTrades: number;
-  lastTradePrice: number | null;
-  
-  // Metadata
-  endDate: string;
-  active: boolean;
+  // Token IDs
+  yesTokenId: string | null;
+  noTokenId: string | null;
 }
 
 export async function getEnrichedMarkets(
@@ -548,47 +375,47 @@ export async function getEnrichedMarkets(
   
   for (const event of events) {
     for (const market of event.markets) {
-      const yesToken = market.tokens.find(t => t.outcome === 'Yes');
-      if (!yesToken) continue;
+      const clobTokenIds = parseClobTokenIds(market.clobTokenIds);
+      const yesTokenId = clobTokenIds[0];
       
-      // Fetch CLOB data
-      const [midpoint, orderbook] = await Promise.all([
-        getMidpoint(yesToken.token_id).catch(() => null),
-        getOrderBook(yesToken.token_id).catch(() => null),
-      ]);
+      let bestBid = null;
+      let bestAsk = null;
+      let midpoint = null;
       
-      const bestBid = orderbook?.bids[0] 
-        ? parseFloat(orderbook.bids[0].price) 
-        : null;
-      const bestAsk = orderbook?.asks[0] 
-        ? parseFloat(orderbook.asks[0].price) 
-        : null;
+      // Try to get CLOB data (may fail if no orderbook)
+      if (yesTokenId) {
+        try {
+          const [orderbook, midData] = await Promise.all([
+            getOrderBook(yesTokenId),
+            getMidpoint(yesTokenId)
+          ]);
+          
+          bestBid = orderbook.bids[0] ? parseFloat(orderbook.bids[0].price) : null;
+          bestAsk = orderbook.asks[0] ? parseFloat(orderbook.asks[0].price) : null;
+          midpoint = parseFloat(midData.mid);
+        } catch {
+          // No orderbook for this market
+        }
+      }
       
       enriched.push({
         id: market.id,
         question: market.question,
         slug: market.slug,
-        description: market.description,
         category: event.tags[0]?.label || 'General',
         bestBid,
         bestAsk,
         midpoint,
         spread: bestBid && bestAsk ? bestAsk - bestBid : null,
-        volume24h: parseFloat(market.volume),
-        liquidity: parseFloat(market.liquidity),
-        yesTokenId: yesToken.token_id,
-        noTokenId: market.tokens.find(t => t.outcome === 'No')?.token_id || '',
-        recentTrades: 0, // Would need separate call
-        lastTradePrice: market.lastTradePrice 
-          ? parseFloat(market.lastTradePrice) 
-          : null,
-        endDate: market.endDate,
-        active: event.active,
+        change24h: market.oneDayPriceChange,
+        change7d: market.oneWeekPriceChange,
+        yesTokenId,
+        noTokenId: clobTokenIds[1] || null
       });
     }
   }
   
-  return enriched.sort((a, b) => b.volume24h - a.volume24h);
+  return enriched.sort((a, b) => Math.abs(b.change24h || 0) - Math.abs(a.change24h || 0));
 }
 ```
 
@@ -600,28 +427,9 @@ export async function getEnrichedMarkets(
 |-----|-------|----------|
 | Gamma | Unknown | Cache results, poll every 60s |
 | CLOB | Unknown | Poll active markets every 30s |
-| Data | Unknown | Use for historical, not realtime |
+| Data | N/A | Currently broken - don't use |
 
-### Caching Pattern
-
-```typescript
-import NodeCache from 'node-cache';
-
-const cache = new NodeCache({ stdTTL: 30 }); // 30 seconds
-
-export async function getCachedMarkets(): Promise<EnrichedMarket[]> {
-  const cached = cache.get<EnrichedMarket[]>('markets');
-  if (cached) return cached;
-  
-  const markets = await getEnrichedMarkets();
-  cache.set('markets', markets);
-  return markets;
-}
-```
-
----
-
-## Error Handling
+### Error Handling
 
 ```typescript
 import axios, { AxiosError } from 'axios';
@@ -640,6 +448,16 @@ export class PolymarketAPIError extends Error {
 export function handleAPIError(error: unknown, endpoint: string): never {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError;
+    
+    // Handle specific error cases
+    if (axiosError.response?.data?.error?.includes('No orderbook exists')) {
+      throw new PolymarketAPIError(
+        'Market has no CLOB orderbook (no liquidity)',
+        404,
+        endpoint
+      );
+    }
+    
     throw new PolymarketAPIError(
       axiosError.response?.data?.message || axiosError.message,
       axiosError.response?.status,
@@ -654,4 +472,6 @@ export function handleAPIError(error: unknown, endpoint: string): never {
 
 ## Next Steps
 
-See `TRADING.md` for authenticated endpoints (placing orders, managing positions).
+1. See **[API_REFERENCE_TESTED.md](./API_REFERENCE_TESTED.md)** for exact schemas from real testing
+2. See **[PENDING_TODOS.md](../../PENDING_TODOS.md)** for known issues and planned fixes
+3. Check the `skills/polymarket/scripts/` folder for working implementations
