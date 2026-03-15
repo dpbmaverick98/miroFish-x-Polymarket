@@ -33,6 +33,14 @@ function parseOutcomePrices(pricesJson) {
   }
 }
 
+function parseClobTokenIds(clobTokenIdsJson) {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
 async function getMarket(slug) {
   const url = `${GAMMA_API}/events/slug/${encodeURIComponent(slug)}`;
   
@@ -45,6 +53,7 @@ async function getMarket(slug) {
     }
     
     const prices = parseOutcomePrices(market.outcomePrices);
+    const clobTokenIds = parseClobTokenIds(market.clobTokenIds);
     const yesToken = market.tokens?.find(t => t.outcome === 'Yes');
     const noToken = market.tokens?.find(t => t.outcome === 'No');
     
@@ -85,6 +94,10 @@ async function getMarket(slug) {
           token_id: noToken.token_id,
           price: noToken.price
         } : null
+      },
+      clobTokenIds: {
+        yes: clobTokenIds[0] || null,
+        no: clobTokenIds[1] || null
       }
     };
   } catch (error) {
