@@ -2,6 +2,12 @@
 
 Quick reference for setting up and running MiroFish.
 
+> **Live Demo:** https://666ghj.github.io/mirofish-demo/
+> 
+> **Official Repo:** https://github.com/666ghj/MiroFish
+> 
+> **Original Docs:** [中文文档](https://github.com/666ghj/MiroFish/blob/main/README.md) | [English](https://github.com/666ghj/MiroFish/blob/main/README-EN.md)
+
 ---
 
 ## Prerequisites
@@ -128,6 +134,13 @@ cp .env.example .env
 
 docker compose up -d
 ```
+
+**Docker notes:**
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5001
+- Logs: `docker compose logs -f`
+- Stop: `docker compose down`
+- Mirror registry available in `docker-compose.yml` comments (for China users)
 
 ---
 

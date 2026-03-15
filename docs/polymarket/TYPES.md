@@ -854,4 +854,35 @@ export enum MarketStatus {
   RESOLVED = 'resolved',
   CANCELLED = 'cancelled',
 }
+
+/**
+ * Parse outcome prices from JSON string to number array
+ * @example
+ * parseOutcomePrices("[\"0.35\", \"0.65\"]") // [0.35, 0.65]
+ */
+export function parseOutcomePrices(pricesJson: string): number[] {
+  try {
+    return JSON.parse(pricesJson) as number[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Calculate implied probability from price
+ * @example
+ * priceToProbability(0.65) // 65%
+ */
+export function priceToProbability(price: number): number {
+  return Math.round(price * 100);
+}
+
+/**
+ * Format price for display
+ * @example
+ * formatPrice(0.6542) // "$0.65"
+ */
+export function formatPrice(price: number): string {
+  return `$${price.toFixed(2)}`;
+}
 ```

@@ -10,6 +10,10 @@ Using `@polymarket/clob-client` for type-safe API interactions.
 npm install @polymarket/clob-client ethers
 ```
 
+**Requirements:**
+- Node.js >= 20.10 (required by SDK)
+- TypeScript >= 5.0 (recommended)
+
 ---
 
 ## Client Initialization

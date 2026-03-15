@@ -80,7 +80,7 @@ export interface GammaMarket {
   conditionId: string;
   slug: string;
   outcomes: string[];
-  outcomePrices: string[]; // JSON array of prices
+  outcomePrices: string; // JSON string: "[\"0.35\", \"0.65\"]"
   volume: string;
   liquidity: string;
   startDate: string;
@@ -93,6 +93,13 @@ export interface GammaMarket {
     price: number;
     token_id: string;
   }[];
+  /** Whether this is a negative risk market */
+  negRisk?: boolean;
+  /** Market rewards configuration */
+  rewards?: {
+    rate: number;
+    minSize: number;
+  };
 }
 
 export async function getActiveEvents(
