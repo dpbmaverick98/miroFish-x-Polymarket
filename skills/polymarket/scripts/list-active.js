@@ -33,7 +33,10 @@ async function listActive(limit = 20, orderBy = 'volume_24hr') {
   const url = `${GAMMA_API}/events?active=true&closed=false&limit=${limit}&order=${orderBy}&ascending=false`;
   
   try {
-    const events = await fetchJson(url);
+    const data = await fetchJson(url);
+    
+    // Handle both array and object with data property
+    const events = Array.isArray(data) ? data : (data.data || []);
     
     return events.map((event, index) => {
       const market = event.markets?.[0];
