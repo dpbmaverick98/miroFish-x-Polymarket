@@ -5,7 +5,6 @@ const https = require('https');
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
-const DATA_API = 'https://data-api.polymarket.com';
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -31,103 +30,98 @@ function parseOutcomePrices(pricesJson) {
   }
 }
 
+function parseClobTokenIds(clobTokenIdsJson) {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
 async function analyzeMarket(slug) {
   try {
     // 1. Get market details
-    const marketUrl = `${GAMMA_API}/events/slug/${encodeURIComponent(slug)}`;
-    const event = await fetchJson(marketUrl);
+    const event = await fetchJson(`${GAMMA_API}/events/slug/${encodeURIComponent(slug)}`);
     const market = event.markets?.[0];
     
     if (!market) {
       throw new Error('Market not found');
     }
     
-    const yesToken = market.tokens?.find(t => t.outcome === 'Yes');
-    const tokenId = yesToken?.token_id;
+    const clobTokenIds = parseClobTokenIds(market.clobTokenIds);
+    const tokenId = clobTokenIds[0]; // Yes token
     
-    // 2. Get orderbook
-    const orderbookUrl = `${CLOB_API}/book?token_id=${encodeURIComponent(tokenId)}`;
-    const orderbook = await fetchJson(orderbookUrl);
+    if (!tokenId) {
+      throw new Error('No CLOB token ID found for this market');
+    }
     
-    // 3. Get midpoint
-    const midpointUrl = `${CLOB_API}/midpoint?token_id=${encodeURIComponent(tokenId)}`;
-    const midpointData = await fetchJson(midpointUrl);
+    // 2. Get orderbook and midpoint in parallel
+    const [orderbook, midpointData] = await Promise.all([
+      fetchJson(`${CLOB_API}/book?token_id=${encodeURIComponent(tokenId)}`),
+      fetchJson(`${CLOB_API}/midpoint?token_id=${encodeURIComponent(tokenId)}`)
+    ]);
     
-    // 4. Get 7-day price history
-    const endTs = Math.floor(Date.now() / 1000);
-    const startTs = endTs - (7 * 24 * 60 * 60);
-    const pricesUrl = `${DATA_API}/prices-history?market=${encodeURIComponent(market.conditionId)}&startTs=${startTs}&endTs=${endTs}&fidelity=1d`;
-    const prices = await fetchJson(pricesUrl);
-    
-    // Clean and structure the output
-    const pricesParsed = Array.isArray(prices) ? prices : [];
-    const currentPrice = midpointData.mid || parseOutcomePrices(market.outcomePrices)[0] || 0;
-    const startPrice = pricesParsed[0]?.p || currentPrice;
-    const priceChange = currentPrice - startPrice;
-    const priceChangePercent = startPrice ? (priceChange / startPrice) * 100 : 0;
+    // Use prices from outcomePrices as fallback
+    const outcomePrices = parseOutcomePrices(market.outcomePrices);
+    const currentPrice = parseFloat(midpointData.mid) || outcomePrices[0] || 0;
     
     const bestBid = orderbook.bids?.[0] ? parseFloat(orderbook.bids[0].price) : null;
     const bestAsk = orderbook.asks?.[0] ? parseFloat(orderbook.asks[0].price) : null;
     const spread = bestBid && bestAsk ? bestAsk - bestBid : null;
     
-    // Calculate trend direction
+    // Calculate price change from outcomePrices history if available
+    const startPrice = outcomePrices[0] || currentPrice;
+    const priceChange = currentPrice - startPrice;
+    const priceChangePercent = startPrice ? (priceChange / startPrice) * 100 : 0;
+    
+    // Determine trend from oneDay/oneWeek price changes if available
     let trend = 'stable';
-    if (pricesParsed.length >= 3) {
-      const recent = pricesParsed.slice(-3);
-      const avgRecent = recent.reduce((a, b) => a + b.p, 0) / recent.length;
-      const older = pricesParsed.slice(0, Math.min(3, pricesParsed.length));
-      const avgOlder = older.reduce((a, b) => a + b.p, 0) / older.length;
-      trend = avgRecent > avgOlder * 1.05 ? 'rising' : avgRecent < avgOlder * 0.95 ? 'falling' : 'stable';
-    }
+    if (market.oneDayPriceChange > 0.01) trend = 'rising';
+    else if (market.oneDayPriceChange < -0.01) trend = 'falling';
     
     return {
       summary: {
         question: market.question,
         slug: slug,
         category: event.tags?.[0]?.label || 'General',
-        status: event.closed ? 'closed' : event.active ? 'active' : 'pending',
+        status: market.closed ? 'closed' : market.active ? 'active' : 'pending',
         endDate: market.endDate
       },
       pricing: {
         current: currentPrice,
         impliedProbability: Math.round(currentPrice * 100),
-        change7d: {
-          absolute: parseFloat(priceChange.toFixed(4)),
-          percent: parseFloat(priceChangePercent.toFixed(2))
-        },
-        trend,
+        change24h: market.oneDayPriceChange ? parseFloat((market.oneDayPriceChange * 100).toFixed(2)) : null,
+        change7d: market.oneWeekPriceChange ? parseFloat((market.oneWeekPriceChange * 100).toFixed(2)) : null,
         bestBid,
         bestAsk,
         spread: spread ? parseFloat(spread.toFixed(4)) : null,
-        spreadBps: spread ? Math.round(spread * 10000) : null
+        spreadBps: spread ? Math.round(spread * 10000) : null,
+        lastTradePrice: orderbook.last_trade_price ? parseFloat(orderbook.last_trade_price) : null
       },
       liquidity: {
-        volume24h: market.volume,
+        volume24h: market.volume24hr || market.volume,
         totalVolume: event.volume,
         liquidity: market.liquidity,
+        openInterest: market.openInterest,
         bestBidSize: orderbook.bids?.[0] ? parseFloat(orderbook.bids[0].size) : null,
         bestAskSize: orderbook.asks?.[0] ? parseFloat(orderbook.asks[0].size) : null
       },
-      tokens: {
-        yes: {
-          tokenId: yesToken?.token_id,
-          price: yesToken?.price
-        },
-        no: {
-          tokenId: market.tokens?.find(t => t.outcome === 'No')?.token_id,
-          price: market.tokens?.find(t => t.outcome === 'No')?.price
-        }
-      },
-      history: {
-        dataPoints: pricesParsed.length,
-        high7d: pricesParsed.length ? Math.max(...pricesParsed.map(p => p.p)) : currentPrice,
-        low7d: pricesParsed.length ? Math.min(...pricesParsed.map(p => p.p)) : currentPrice
+      orderbook: {
+        bids: (orderbook.bids || []).slice(0, 5).map(b => ({
+          price: parseFloat(b.price),
+          size: parseFloat(b.size)
+        })),
+        asks: (orderbook.asks || []).slice(0, 5).map(a => ({
+          price: parseFloat(a.price),
+          size: parseFloat(a.size)
+        }))
       },
       analysis: {
         liquidityScore: parseFloat(market.liquidity) > 100000 ? 'high' : parseFloat(market.liquidity) > 50000 ? 'medium' : 'low',
-        volatility: Math.abs(priceChangePercent) > 20 ? 'high' : Math.abs(priceChangePercent) > 10 ? 'medium' : 'low',
-        tradingOpportunity: spread && spread > 0.02 ? 'wide_spread' : spread && spread < 0.005 ? 'tight_spread' : 'normal'
-      }
+        spreadQuality: spread && spread < 0.01 ? 'tight' : spread && spread < 0.05 ? 'normal' : 'wide',
+        tradingOpportunity: spread && spread > 0.02 ? 'arbitrage_potential' : 'standard'
+      },
+      tokenId
     };
   } catch (error) {
     console.error(JSON.stringify({ error: error.message }, null, 2));
@@ -140,7 +134,7 @@ const slug = process.argv[2];
 
 if (!slug) {
   console.log('Usage: analyze-market-full.js <slug>');
-  console.log('Example: analyze-market-full.js will-bitcoin-hit-100k-2025');
+  console.log('Example: analyze-market-full.js microstrategy-sell-any-bitcoin-in-2025');
   process.exit(1);
 }
 

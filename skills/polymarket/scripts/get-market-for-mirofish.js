@@ -5,7 +5,6 @@ const https = require('https');
 
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
-const DATA_API = 'https://data-api.polymarket.com';
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
@@ -35,79 +34,71 @@ function parseOutcomePrices(pricesJson) {
   }
 }
 
+function parseClobTokenIds(clobTokenIdsJson) {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
 async function getMarketForMirofish(keyword) {
   try {
     // 1. Search for markets
-    const searchUrl = `${GAMMA_API}/events?active=true&closed=false&search=${encodeURIComponent(keyword)}&limit=5`;
-    const searchResults = await fetchJson(searchUrl);
+    const searchResults = await fetchJson(
+      `${GAMMA_API}/events?active=true&closed=false&search=${encodeURIComponent(keyword)}&limit=5`
+    );
     
-    if (!searchResults.length) {
+    const events = Array.isArray(searchResults) ? searchResults : (searchResults.data || []);
+    
+    if (!events.length) {
       throw new Error(`No markets found for keyword: ${keyword}`);
     }
     
     // Pick best match (highest volume)
-    const bestMatch = searchResults.sort((a, b) => {
+    const bestMatch = events.sort((a, b) => {
       const volA = parseFloat(a.markets?.[0]?.volume) || 0;
       const volB = parseFloat(b.markets?.[0]?.volume) || 0;
       return volB - volA;
     })[0];
     
     const market = bestMatch.markets?.[0];
-    const yesToken = market?.tokens?.find(t => t.outcome === 'Yes');
-    const tokenId = yesToken?.token_id;
+    const clobTokenIds = parseClobTokenIds(market.clobTokenIds);
+    const tokenId = clobTokenIds[0];
     
-    // 2. Get full market details
-    const event = await fetchJson(`${GAMMA_API}/events/slug/${encodeURIComponent(bestMatch.slug)}`);
-    const fullMarket = event.markets?.[0];
-    
-    // 3. Get orderbook
+    // 2. Get orderbook if token available
     let orderbook = null;
-    try {
-      orderbook = await fetchJson(`${CLOB_API}/book?token_id=${encodeURIComponent(tokenId)}`);
-    } catch {}
+    if (tokenId) {
+      try {
+        orderbook = await fetchJson(`${CLOB_API}/book?token_id=${encodeURIComponent(tokenId)}`);
+      } catch {}
+    }
     
-    // 4. Get 30-day price history
-    let priceHistory = [];
-    try {
-      const endTs = Math.floor(Date.now() / 1000);
-      const startTs = endTs - (30 * 24 * 60 * 60);
-      priceHistory = await fetchJson(
-        `${DATA_API}/prices-history?market=${encodeURIComponent(fullMarket.conditionId)}&startTs=${startTs}&endTs=${endTs}&fidelity=1d`
-      );
-    } catch {}
-    
-    // Parse and clean data
-    const prices = parseOutcomePrices(fullMarket.outcomePrices);
+    // Parse prices
+    const prices = parseOutcomePrices(market.outcomePrices);
     const currentPrice = prices[0] ? parseFloat(prices[0]) : 0;
     
     const bestBid = orderbook?.bids?.[0] ? parseFloat(orderbook.bids[0].price) : null;
     const bestAsk = orderbook?.asks?.[0] ? parseFloat(orderbook.asks[0].price) : null;
     
-    // Calculate trend from price history
+    // Determine trend
     let trend = 'stable';
+    if (market.oneDayPriceChange > 0.01) trend = 'rising';
+    else if (market.oneDayPriceChange < -0.01) trend = 'falling';
+    
     let volatility = 'low';
-    if (Array.isArray(priceHistory) && priceHistory.length >= 7) {
-      const firstWeek = priceHistory.slice(0, 7);
-      const lastWeek = priceHistory.slice(-7);
-      const avgFirst = firstWeek.reduce((a, b) => a + b.p, 0) / firstWeek.length;
-      const avgLast = lastWeek.reduce((a, b) => a + b.p, 0) / lastWeek.length;
-      
-      if (avgLast > avgFirst * 1.1) trend = 'rising';
-      else if (avgLast < avgFirst * 0.9) trend = 'falling';
-      
-      const priceRange = Math.max(...priceHistory.map(p => p.p)) - Math.min(...priceHistory.map(p => p.p));
-      volatility = priceRange > 0.2 ? 'high' : priceRange > 0.1 ? 'medium' : 'low';
-    }
+    if (Math.abs(market.oneWeekPriceChange || 0) > 0.1) volatility = 'high';
+    else if (Math.abs(market.oneWeekPriceChange || 0) > 0.05) volatility = 'medium';
     
     // Build MiroFish-ready context
     return {
       mirofishContext: {
         seedDocument: {
-          title: event.title,
-          question: fullMarket.question,
-          description: fullMarket.description,
-          category: event.tags?.[0]?.label || 'General',
-          tags: event.tags?.map(t => t.label) || []
+          title: bestMatch.title,
+          question: market.question,
+          description: market.description,
+          category: bestMatch.tags?.[0]?.label || 'General',
+          tags: bestMatch.tags?.map(t => t.label) || []
         },
         marketData: {
           currentOdds: {
@@ -122,16 +113,15 @@ async function getMarketForMirofish(keyword) {
             bestBid,
             bestAsk,
             spread: bestBid && bestAsk ? parseFloat((bestAsk - bestBid).toFixed(4)) : null,
-            volume24h: fullMarket.volume,
-            totalVolume: event.volume,
-            liquidity: fullMarket.liquidity
+            volume24h: market.volume24hr || market.volume,
+            totalVolume: bestMatch.volume,
+            liquidity: market.liquidity
           },
           history: {
             trend,
             volatility,
-            daysOfData: Array.isArray(priceHistory) ? priceHistory.length : 0,
-            high30d: Array.isArray(priceHistory) ? Math.max(...priceHistory.map(p => p.p)) : currentPrice,
-            low30d: Array.isArray(priceHistory) ? Math.min(...priceHistory.map(p => p.p)) : currentPrice
+            change24h: market.oneDayPriceChange ? parseFloat((market.oneDayPriceChange * 100).toFixed(2)) : null,
+            change7d: market.oneWeekPriceChange ? parseFloat((market.oneWeekPriceChange * 100).toFixed(2)) : null
           }
         },
         simulationParameters: {
@@ -142,11 +132,11 @@ async function getMarketForMirofish(keyword) {
         }
       },
       metadata: {
-        marketId: fullMarket.id,
-        conditionId: fullMarket.conditionId,
+        marketId: market.id,
+        conditionId: market.conditionId,
         slug: bestMatch.slug,
         tokenId,
-        endDate: fullMarket.endDate,
+        endDate: market.endDate,
         dataCollected: new Date().toISOString()
       }
     };
@@ -161,7 +151,7 @@ const keyword = process.argv.slice(2).join(' ');
 
 if (!keyword) {
   console.log('Usage: get-market-for-mirofish.js <keyword>');
-  console.log('Example: get-market-for-mirofish.js bitcoin 100k');
+  console.log('Example: get-market-for-mirofish.js bitcoin');
   process.exit(1);
 }
 

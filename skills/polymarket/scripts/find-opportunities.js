@@ -22,11 +22,22 @@ function fetchJson(url) {
   });
 }
 
+function parseClobTokenIds(clobTokenIdsJson) {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
 async function findOpportunities(limit = 20, minVolume = 100000, priceChangeThreshold = 0.05) {
   try {
     // 1. Get top active markets
     const marketsUrl = `${GAMMA_API}/events?active=true&closed=false&limit=${limit}&order=volume_24hr&ascending=false`;
-    const events = await fetchJson(marketsUrl);
+    const data = await fetchJson(marketsUrl);
+    
+    // Handle both array and object responses
+    const events = Array.isArray(data) ? data : (data.data || []);
     
     // 2. Get current prices for each market
     const opportunities = [];
@@ -38,26 +49,20 @@ async function findOpportunities(limit = 20, minVolume = 100000, priceChangeThre
       // Filter by minimum volume
       if (parseFloat(market.volume) < minVolume) continue;
       
-      const yesToken = market.tokens?.find(t => t.outcome === 'Yes');
-      if (!yesToken?.token_id) continue;
+      const clobTokenIds = parseClobTokenIds(market.clobTokenIds);
+      const tokenId = clobTokenIds[0];
+      
+      if (!tokenId) continue;
       
       try {
         // Get midpoint
-        const midpointUrl = `${CLOB_API}/midpoint?token_id=${encodeURIComponent(yesToken.token_id)}`;
-        const midpointData = await fetchJson(midpointUrl);
+        const midpointData = await fetchJson(`${CLOB_API}/midpoint?token_id=${encodeURIComponent(tokenId)}`);
         
-        const currentPrice = midpointData.mid;
-        if (!currentPrice) continue;
+        const currentPrice = parseFloat(midpointData.mid);
+        if (!currentPrice || isNaN(currentPrice)) continue;
         
-        // Parse outcome prices to get previous/reference price
-        let previousPrice = currentPrice;
-        try {
-          const prices = JSON.parse(market.outcomePrices || '[]');
-          previousPrice = parseFloat(prices[0]) || currentPrice;
-        } catch {}
-        
-        const priceChange = currentPrice - previousPrice;
-        const priceChangePercent = previousPrice ? (priceChange / previousPrice) * 100 : 0;
+        // Use oneDayPriceChange from market data
+        const priceChangePercent = (market.oneDayPriceChange || 0) * 100;
         
         // Only include if significant movement
         if (Math.abs(priceChangePercent) >= priceChangeThreshold * 100) {
@@ -66,16 +71,14 @@ async function findOpportunities(limit = 20, minVolume = 100000, priceChangeThre
             question: market.question,
             slug: event.slug,
             category: event.tags?.[0]?.label || 'General',
-            volume24h: market.volume,
+            volume24h: market.volume24hr || market.volume,
             liquidity: market.liquidity,
             currentPrice: parseFloat(currentPrice.toFixed(4)),
             impliedProbability: Math.round(currentPrice * 100),
             priceChange: {
-              absolute: parseFloat(priceChange.toFixed(4)),
               percent: parseFloat(priceChangePercent.toFixed(2))
             },
-            direction: priceChange > 0 ? 'up' : 'down',
-            tokenId: yesToken.token_id,
+            direction: priceChangePercent > 0 ? 'up' : 'down',
             endDate: market.endDate
           });
         }
@@ -103,7 +106,7 @@ async function findOpportunities(limit = 20, minVolume = 100000, priceChangeThre
         rising: opportunities.filter(o => o.direction === 'up').length,
         falling: opportunities.filter(o => o.direction === 'down').length
       },
-      opportunities: opportunities.slice(0, 10) // Top 10
+      opportunities: opportunities.slice(0, 10)
     };
   } catch (error) {
     console.error(JSON.stringify({ error: error.message }, null, 2));

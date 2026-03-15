@@ -29,6 +29,14 @@ function parseOutcomePrices(pricesJson) {
   }
 }
 
+function parseClobTokenIds(clobTokenIdsJson) {
+  try {
+    return JSON.parse(clobTokenIdsJson);
+  } catch {
+    return [];
+  }
+}
+
 async function listActive(limit = 20, orderBy = 'volume_24hr') {
   const url = `${GAMMA_API}/events?active=true&closed=false&limit=${limit}&order=${orderBy}&ascending=false`;
   
@@ -41,7 +49,7 @@ async function listActive(limit = 20, orderBy = 'volume_24hr') {
     return events.map((event, index) => {
       const market = event.markets?.[0];
       const prices = market ? parseOutcomePrices(market.outcomePrices) : [];
-      const yesToken = market?.tokens?.find(t => t.outcome === 'Yes');
+      const clobTokenIds = market ? parseClobTokenIds(market.clobTokenIds) : [];
       
       return {
         rank: index + 1,
@@ -50,10 +58,11 @@ async function listActive(limit = 20, orderBy = 'volume_24hr') {
         slug: event.slug,
         category: event.tags?.[0]?.label || 'General',
         yesPrice: prices[0] ? parseFloat(prices[0]) : null,
-        volume: market?.volume || '0',
+        volume24h: market?.volume24hr || market?.volume || '0',
+        totalVolume: event.volume,
         liquidity: market?.liquidity || '0',
         endDate: market?.endDate,
-        tokenId: yesToken?.token_id || null
+        clobTokenId: clobTokenIds[0] || null
       };
     });
   } catch (error) {
