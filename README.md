@@ -12,16 +12,13 @@ Prediction market analysis with MiroFish simulation and Obul research services.
 ## Quick Start
 
 ```bash
-# Clone and setup
-git clone https://github.com/dpbmaverick98/miroFish-x-Polymarket.git
-cd miroFish-x-Polymarket
-
-# Use the setup skill (mirofish-zep-obul-setup)
+# Give you LLM mirofish-zep-obul-setup skill
+https://github.com/dpbmaverick98/miroFish-x-Polymarket/blob/main/skills/mirofish-zep-obul-setup/SKILL.md
 # This will:
-#   - Install MiroFish with Python 3.12
-#   - Configure Minimax LLM
-#   - Set up Zep memory
+#   - Install MiroFish with correct versions (Python 3.12) 
 #   - Configure Obul for research
+#   - Load Polymarket skill
+#   - Launch Polymarket x mirofish prediction flow
 ```
 
 ## What's Included
