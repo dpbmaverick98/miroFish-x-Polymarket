@@ -20,10 +20,12 @@ A step-by-step workflow to find markets, research topics, and generate MiroFish 
 
 | Step | Action | Tool/Service |
 |------|--------|--------------|
-| **1** | Find Markets | polymarket CLI |
-| **2** | Research Topics | Obul Services (pick as needed) |
-| **3** | Prepare Seed Doc | (manual compilation) |
+| **1** | Find Markets | polymarket CLI (just to find topics) |
+| **2** | Research Facts | Obul Services (facts, incidents only) |
+| **3** | Prepare Seed Doc | Facts/incidents only - NO prices! |
 | **4** | Run Prediction | MiroFish API |
+
+⚠️ **Key Principle:** Seed doc should contain ONLY real-world facts and incidents. Do NOT include prediction market prices/odds/volumes - this biases the simulation.
 
 ---
 
@@ -266,43 +268,47 @@ Find available APIs for a topic
 
 ## Step 3: Prepare Seed Doc
 
+⚠️ **IMPORTANT:** Do NOT include Polymarket data (prices, odds, volume) in the seed doc. This biases the simulation. Only include facts, incidents, and real-world events.
+
 Compile findings into markdown:
 
 ```markdown
 # Prediction: [Market Question]
 
-## Polymarket Data
-- Question: [from polymarket]
-- Current Price: [X%]
-- Volume: [$X]
-- Liquidity: [$X]
-- End Date: [YYYY-MM-DD]
-- Condition ID: [xxx]
-- Token ID (Yes): [xxx]
-- Token ID (No): [xxx]
+## Key Facts & Incidents (Real-World Events Only)
+
+### Recent Events
+- [Date]: [What happened - factual incident]
+- [Date]: [What happened - factual incident]
+- ...
+
+### Military/Geopolitical Activity
+- [Country/Entity]: [Description of activity]
+- [Country/Entity]: [Description of activity]
+
+### Political Developments
+- [Official action or statement]
+- [Legislative development]
+
+### Key Players & Positions
+- [Leader/Entity]: [Known position/faction]
+- [Leader/Entity]: [Known position/faction]
 
 ## Research Findings
 
 ### Web Search (Exa)
-- [Title 1]: [Summary]
-- [Title 2]: [Summary]
-
-### AI Answer (Exa)
-[Generated answer with citations]
+- [Title 1]: [Summary of factual news]
+- [Title 2]: [Summary of factual news]
 
 ### Web Scraped (Firecrawl)
-- [Source URL]: [Key points]
+- [Source URL]: [Key facts from article]
 
-### Twitter Sentiment (Twit/ClawAPI)
-- [Tweet 1]
-- [Tweet 2]
-- Overall: Bullish/Bearish/Neutral
-
-### Unified Search (Sybil)
-[Results from Grok combined search]
+### Twitter/X Sentiment
+- [Key tweet reflecting public discourse]
+- [Key tweet reflecting public discourse]
 
 ## Prediction Question
-[Exact question for MiroFish simulation]
+[Exact question for MiroFish simulation - NO prices/odds]
 ```
 
 **You confirm:** Proceed to prediction?
