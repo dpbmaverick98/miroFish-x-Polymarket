@@ -61,7 +61,6 @@ cd miroFish-x-Polymarket
 | **Minimax** | LLM for MiroFish | https://platform.minimax.io |
 | **Obul** | Research (Firecrawl, Twit, Exa) | https://my.obul.ai |
 | **Zep** | Memory (optional) | https://app.getzep.com |
-| **Polymarket** | Markets (optional) | https://polymarket.com |
 
 ## Requirements
 
