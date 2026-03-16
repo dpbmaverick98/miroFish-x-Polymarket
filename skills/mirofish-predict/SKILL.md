@@ -1,7 +1,7 @@
 ---
 name: mirofish-predict
 alias: mfp
-description: 'USE THIS SKILL WHEN: user wants to find prediction market opportunities on Polymarket, research topics via Obul services, prepare a seed document, and run MiroFish predictions. Workflow: Find Markets → Research → Seed Doc → Predict'
+description: 'USE THIS SKILL WHEN: user wants to find prediction market opportunities on Polymarket, research topics via Obul services, prepare seed documents (news, twitter, web), and run MiroFish predictions. Workflow: Find Markets → Research (multiple docs) → Upload All Docs → Predict'
 metadata:
   openclaw:
     emoji: 🎯
@@ -14,18 +14,18 @@ metadata:
 
 # MiroFish Predict Workflow
 
-A step-by-step workflow to find markets, research topics, and generate MiroFish predictions.
+A step-by-step workflow to find markets, research topics, and generate MiroFish predictions using multi-document seed strategy.
 
 ## Workflow Overview
 
 | Step | Action | Tool/Service |
 |------|--------|--------------|
-| **1** | Find Markets | polymarket CLI (just to find topics) |
-| **2** | Research Facts | Obul Services (facts, incidents only) |
-| **3** | Prepare Seed Doc | Facts/incidents only - NO prices! |
+| **1** | Find Markets | polymarket CLI (just to identify topics) |
+| **2** | Research & Create Seed Docs | Obul Services → `seed_news.md`, `seed_twitter.md`, `seed_web.md` |
+| **3** | Upload All Docs to MiroFish | Multiple files via API |
 | **4** | Run Prediction | MiroFish API |
 
-⚠️ **Key Principle:** Seed doc should contain ONLY real-world facts and incidents. Do NOT include prediction market prices/odds/volumes - this biases the simulation.
+⚠️ **Key Principle:** Seed documents should contain ONLY real-world facts, quotes, and incidents. Do NOT include prediction market prices/odds/volumes - this biases the simulation.
 
 ---
 
@@ -40,7 +40,7 @@ polymarket markets search "bitcoin" --limit 10
 # List active markets
 polymarket markets list --active true --limit 20
 
-# Get specific market details (includes token IDs)
+# Get specific market details
 polymarket markets get <slug>
 polymarket clob market <condition-id>
 ```
@@ -49,15 +49,126 @@ polymarket clob market <condition-id>
 
 ---
 
-## Step 2: Research Topics
+## Step 2: Research Topics & Create Seed Docs
 
-Use these Obul services for each selected market:
+**User specifies:** What search types to run? (e.g., "news + twitter", "web search only", "twitter for @realDonaldTrump")
 
-### Web Search & AI
+Create these documents in `docs/seeds/`:
 
-#### A) Exa Neural Search - `obul-ortho-exa`
-Best for: Semantic web search, finding conceptually related content
+### docs/seeds/seed_news.md
+```markdown
+# News Research
 
+## [Article Title]
+- **URL:** https://example.com/article
+- **Date:** 2026-03-15T14:30:00Z
+- **Source:** [Publisher Name]
+- **Content:** [Exact excerpts with quotes, key facts]
+
+## [Next Article]
+...
+```
+
+### docs/seeds/seed_twitter.md
+```markdown
+# Twitter/X Research
+
+## @username
+- **Timestamp:** 2026-03-15T14:30:00Z
+- **Content:** [Exact tweet text]
+- **Engagement:** 1234 likes, 567 retweets, 89 replies
+- **URL:** https://x.com/username/status/123456789
+
+## @next_user
+...
+```
+
+### docs/seeds/seed_web.md
+```markdown
+# Web Search Results
+
+## [Source Title]
+- **URL:** https://example.com
+- **Summary:** [Factual summary - no opinions]
+
+## [Next Result]
+...
+```
+
+### Obul Services for Research
+
+#### News / Web Scraping
+
+**Firecrawl Search:**
+```json
+{
+  "method": "POST",
+  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/search",
+  "headers": {
+    "Content-Type": "application/json",
+    "x-obul-api-key": "{{OBUL_API_KEY}}"
+  },
+  "body": {
+    "query": "<topic>",
+    "limit": 10
+  }
+}
+```
+
+**Firecrawl Scrape (for full articles):**
+```json
+{
+  "method": "POST",
+  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/scrape",
+  "headers": {
+    "Content-Type": "application/json",
+    "x-obul-api-key": "{{OBUL_API_KEY}}"
+  },
+  "body": {
+    "url": "<article_url>",
+    "markdown": true
+  }
+}
+```
+
+#### Twitter / X
+
+**Twit Search:**
+```json
+{
+  "method": "GET",
+  "url": "https://proxy.obul.ai/proxy/https/x402.twit.sh/tweets/search?words=<topic>&since=2026-03-01&limit=20",
+  "headers": {
+    "x-obul-api-key": "{{OBUL_API_KEY}}"
+  }
+}
+```
+
+**Search Specific User (e.g., Trump, Elon):**
+```json
+{
+  "method": "GET",
+  "url": "https://proxy.obul.ai/proxy/https/x402.twit.sh/tweets/search?words=from:<username>&since=2026-03-01&limit=20",
+  "headers": {
+    "x-obul-api-key": "{{OBUL_API_KEY}}"
+  }
+}
+```
+
+**ClawAPI X (Official Twitter API):**
+```json
+{
+  "method": "GET",
+  "url": "https://proxy.obul.ai/proxy/https/x402.clawapi.com/x/2/tweets/search/recent?query=<topic>&max_results=20",
+  "headers": {
+    "x-obul-api-key": "{{OBUL_API_KEY}}"
+  }
+}
+```
+
+#### Web Search
+
+**Exa Neural Search:**
 ```json
 {
   "method": "POST",
@@ -67,17 +178,15 @@ Best for: Semantic web search, finding conceptually related content
     "x-obul-api-key": "{{OBUL_API_KEY}}"
   },
   "body": {
-    "query": "<topic> latest news 2025",
-    "numResults": 5,
+    "query": "<topic> latest news 2026",
+    "numResults": 10,
     "type": "neural",
     "text": true
   }
 }
 ```
 
-#### B) Exa Answer - `obul-ortho-exa`
-Best for: AI-generated answer with source citations
-
+**Exa Answer (AI with citations):**
 ```json
 {
   "method": "POST",
@@ -93,40 +202,7 @@ Best for: AI-generated answer with source citations
 }
 ```
 
-#### C) Sybil Unified Search - `obul-sybil`
-Best for: Combined web + Twitter search, Grok reasoning
-
-**Grok Web Search (fast):**
-```json
-{
-  "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https/x402.sybil.ai/api/search/grok-web",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  },
-  "body": {
-    "query": "<topic>"
-  }
-}
-```
-
-**Grok Web + Reasoning:**
-```json
-{
-  "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https/x402.sybil.ai/api/search/grok-web/thinking",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  },
-  "body": {
-    "query": "<topic>"
-  }
-}
-```
-
-**Combined Web + X (fast):**
+**Sybil Grok Combined (Web + X):**
 ```json
 {
   "method": "POST",
@@ -143,208 +219,68 @@ Best for: Combined web + Twitter search, Grok reasoning
 
 ---
 
-### Web Scraping
+### Topic-Specific Search Examples
 
-#### D) Firecrawl Scrape - `obul-stableenrich-firecrawl`
-Best for: Extract full content from URLs found in search
+**Trump-related:**
+- Twitter: `from:realDonaldTrump` or `from:Trump`
+- News: Trump administration policies, statements
 
-```json
-{
-  "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/scrape",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  },
-  "body": {
-    "url": "<article_url>",
-    "markdown": true
-  }
-}
-```
+**Elon-related:**
+- Twitter: `from:elonmusk`
+- News: Tesla, SpaceX, xAI announcements
 
-#### E) Firecrawl Search - `obul-stableenrich-firecrawl`
-Best for: Search the web and get scraped results
-
-```json
-{
-  "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/search",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  },
-  "body": {
-    "query": "<topic>",
-    "limit": 5
-  }
-}
-```
-
-#### F) Firecrawl via x402 - `obul-x402endpoints-firecrawl`
-Alternative Firecrawl endpoint via x402
-
-```json
-{
-  "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https/x402.firecrawl.dev/scrape",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  },
-  "body": {
-    "url": "<article_url>"
-  }
-}
-```
+**Bitcoin/Crypto:**
+- News: Regulatory, institutional adoption
+- Twitter: Key crypto influencers
 
 ---
 
-### Twitter / X
-
-#### G) Twit Search - `obul-twit`
-Best for: Search tweets with advanced filters
-
-```json
-{
-  "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https/x402.twit.sh/tweets/search?words=<topic>&since=2026-03-01&limit=10",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  }
-}
-```
-
-#### H) ClawAPI X - `obul-clawapi-x`
-Alternative Twitter API (official Twitter API)
-
-**Search Recent Tweets:**
-```json
-{
-  "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https/x402.clawapi.com/x/2/tweets/search/recent?query=<topic>&max_results=10",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  }
-}
-```
-
-**Get User Profile:**
-```json
-{
-  "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https/x402.clawapi.com/x/2/users/by/username/<username>",
-  "headers": {
-    "Content-Type": "application/json",
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  }
-}
-```
+**You confirm:** Research complete. Proceed to seed docs?
 
 ---
 
-### API Discovery
-
-#### I) API Finder - `obul-api-finder`
-Find available APIs for a topic
-
-```json
-{
-  "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https/api.obul.dev/apis?category=<topic>",
-  "headers": {
-    "x-obul-api-key": "{{OBUL_API_KEY}}"
-  }
-}
-```
-
----
-
-**You confirm:** Is research sufficient?
-
----
-
-## Step 3: Prepare Seed Doc
-
-⚠️ **IMPORTANT:** Do NOT include Polymarket data (prices, odds, volume) in the seed doc. This biases the simulation. Only include facts, incidents, and real-world events.
-
-Compile findings into markdown:
-
-```markdown
-# Prediction: [Market Question]
-
-## Key Facts & Incidents (Real-World Events Only)
-
-### Recent Events
-- [Date]: [What happened - factual incident]
-- [Date]: [What happened - factual incident]
-- ...
-
-### Military/Geopolitical Activity
-- [Country/Entity]: [Description of activity]
-- [Country/Entity]: [Description of activity]
-
-### Political Developments
-- [Official action or statement]
-- [Legislative development]
-
-### Key Players & Positions
-- [Leader/Entity]: [Known position/faction]
-- [Leader/Entity]: [Known position/faction]
-
-## Research Findings
-
-### Web Search (Exa)
-- [Title 1]: [Summary of factual news]
-- [Title 2]: [Summary of factual news]
-
-### Web Scraped (Firecrawl)
-- [Source URL]: [Key facts from article]
-
-### Twitter/X Sentiment
-- [Key tweet reflecting public discourse]
-- [Key tweet reflecting public discourse]
-
-## Prediction Question
-[Exact question for MiroFish simulation - NO prices/odds]
-```
-
-**You confirm:** Proceed to prediction?
-
----
-
-## Step 4: Run Prediction - MiroFish API
+## Step 3: Upload All Seed Docs to MiroFish
 
 **Base URL:** http://localhost:5001
 
-### 4.1 Create Project & Generate Ontology
-
 ```bash
 curl -X POST http://localhost:5001/api/graph/ontology/generate \
-  -F "files=@/path/to/seed.md" \
-  -F "simulation_requirement=[prediction_question]" \
-  -F "project_name=[project_name]"
+  -F "files=@docs/seeds/seed_news.md" \
+  -F "files=@docs/seeds/seed_twitter.md" \
+  -F "files=@docs/seeds/seed_web.md" \
+  -F "simulation_requirement=<prediction_question>" \
+  -F "project_name=<project_name>" \
+  -F "additional_context=<optional_system_prompt>"
 ```
 
-**Response:** `{ "task_id": "xxx", "project_id": "proj_xxx" }`
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_xxx",
+    "task_id": "task_xxx"
+  }
+}
+```
 
-### 4.2 Check Task Status
-
+**Wait for task completion:**
 ```bash
 curl http://localhost:5001/api/graph/task/{task_id}
 ```
 
-Wait for status: `completed`
+Status: `completed`
 
-### 4.3 Get Project Details (includes graph_id)
-
+**Get project details:**
 ```bash
 curl http://localhost:5001/api/graph/project/{project_id}
 ```
 
-### 4.4 Start Simulation
+---
+
+## Step 4: Run Prediction
+
+### 4.1 Start Simulation
 
 ```bash
 curl -X POST http://localhost:5001/api/simulation/start \
@@ -358,15 +294,23 @@ curl -X POST http://localhost:5001/api/simulation/start \
   }'
 ```
 
-**Response:** `{ "simulation_id": "sim_xxx" }`
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_xxx"
+  }
+}
+```
 
-### 4.5 Check Simulation Status
+### 4.2 Check Simulation Status
 
 ```bash
 curl http://localhost:5001/api/simulation/{simulation_id}/status
 ```
 
-### 4.6 Get Report
+### 4.3 Generate Report
 
 ```bash
 curl http://localhost:5001/api/report/{project_id}
@@ -391,29 +335,27 @@ polymarket markets search "<topic>" --limit 10
 polymarket markets list --active true --limit 20
 polymarket markets get <slug>
 polymarket clob market <condition-id>
-polymarket clob book <token-id>
 ```
 
-### Obul Services Available
+### Obul Services
 
-| Skill | Provider | Purpose | Best For |
-|-------|----------|---------|----------|
-| `obul-ortho-exa` | Exa | Neural search + AI answer | Web research, semantic search |
-| `obul-sybil` | Sybil | Exa + Grok combined | Web + X, reasoning |
-| `obul-stableenrich-firecrawl` | Firecrawl | Web scraping | Extract article content |
-| `obul-x402endpoints-firecrawl` | Firecrawl | Web scraping | Alternative scrape endpoint |
-| `obul-twit` | Twit | Twitter search | Tweet search with filters |
-| `obul-clawapi-x` | ClawAPI | Twitter API | Official Twitter data |
-| `obul-api-finder` | Obul | API discovery | Find APIs for topic |
-| `obul-api-errors` | Obul | Error reference | Troubleshooting |
+| Service | Purpose | Best For |
+|---------|---------|----------|
+| Firecrawl Search | Web search + scrape | News articles |
+| Firecrawl Scrape | Full article extraction | Deep dive on URL |
+| Twit | Tweet search | Twitter with filters |
+| ClawAPI X | Official Twitter API | Twitter data |
+| Exa Search | Neural web search | Semantic search |
+| Exa Answer | AI with citations | Summarized answers |
+| Sybil Grok | Web + X + reasoning | Combined research |
 
 ### MiroFish API
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/graph/ontology/generate` | POST | Create project from seed |
+| `/api/graph/ontology/generate` | POST | Upload seed docs, create project |
 | `/api/graph/task/{id}` | GET | Check task status |
-| `/api/graph/project/{id}` | GET | Get project, graph_id |
+| `/api/graph/project/{id}` | Get project + graph_id |
 | `/api/simulation/start` | POST | Start simulation |
 | `/api/simulation/{id}/status` | GET | Check simulation |
 | `/api/report/{id}` | GET | Get prediction report |
@@ -422,8 +364,8 @@ polymarket clob book <token-id>
 
 ## Usage Flow
 
-1. **Start:** Tell me a topic (e.g., "bitcoin", "AI", "election")
-2. **Step 1:** I run polymarket CLI, you select markets
-3. **Step 2:** I run Obul services, you confirm research
-4. **Step 3:** I compile seed doc, you review
-5. **Step 4:** I call MiroFish API, you get prediction
+1. **Start:** User provides topic (e.g., "bitcoin", "trump")
+2. **Step 1:** Run polymarket CLI, user selects markets
+3. **Step 2:** User specifies search types (news, twitter, web), create 3 seed docs
+4. **Step 3:** Upload all docs to MiroFish
+5. **Step 4:** Run simulation, get prediction
