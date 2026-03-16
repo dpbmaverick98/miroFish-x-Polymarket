@@ -61,7 +61,7 @@ Best for: Semantic web search, finding conceptually related content
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.orth.sh/exa/search",
+  "url": "https://proxy.obul.ai/proxy/https/x402.orth.sh/exa/search",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -81,7 +81,7 @@ Best for: AI-generated answer with source citations
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.orth.sh/exa/answer",
+  "url": "https://proxy.obul.ai/proxy/https/x402.orth.sh/exa/answer",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -100,7 +100,7 @@ Best for: Combined web + Twitter search, Grok reasoning
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.sybil.ai/api/search/grok-web",
+  "url": "https://proxy.obul.ai/proxy/https/x402.sybil.ai/api/search/grok-web",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -115,7 +115,7 @@ Best for: Combined web + Twitter search, Grok reasoning
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.sybil.ai/api/search/grok-web/thinking",
+  "url": "https://proxy.obul.ai/proxy/https/x402.sybil.ai/api/search/grok-web/thinking",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -130,7 +130,7 @@ Best for: Combined web + Twitter search, Grok reasoning
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.sybil.ai/api/search/grok-combined",
+  "url": "https://proxy.obul.ai/proxy/https/x402.sybil.ai/api/search/grok-combined",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -151,7 +151,7 @@ Best for: Extract full content from URLs found in search
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://stableenrich.dev/api/firecrawl/scrape",
+  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/scrape",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -169,7 +169,7 @@ Best for: Search the web and get scraped results
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://stableenrich.dev/api/firecrawl/search",
+  "url": "https://proxy.obul.ai/proxy/https/stableenrich.dev/api/firecrawl/search",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -187,7 +187,7 @@ Alternative Firecrawl endpoint via x402
 ```json
 {
   "method": "POST",
-  "url": "https://proxy.obul.ai/proxy/https://x402.firecrawl.dev/scrape",
+  "url": "https://proxy.obul.ai/proxy/https/x402.firecrawl.dev/scrape",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -208,7 +208,7 @@ Best for: Search tweets with advanced filters
 ```json
 {
   "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https://x402.twit.sh/tweets/search?words=<topic>&since=2026-03-01&limit=10",
+  "url": "https://proxy.obul.ai/proxy/https/x402.twit.sh/tweets/search?words=<topic>&since=2026-03-01&limit=10",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -223,7 +223,7 @@ Alternative Twitter API (official Twitter API)
 ```json
 {
   "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https://x402.clawapi.com/x/2/tweets/search/recent?query=<topic>&max_results=10",
+  "url": "https://proxy.obul.ai/proxy/https/x402.clawapi.com/x/2/tweets/search/recent?query=<topic>&max_results=10",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -235,7 +235,7 @@ Alternative Twitter API (official Twitter API)
 ```json
 {
   "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https://x402.clawapi.com/x/2/users/by/username/<username>",
+  "url": "https://proxy.obul.ai/proxy/https/x402.clawapi.com/x/2/users/by/username/<username>",
   "headers": {
     "Content-Type": "application/json",
     "x-obul-api-key": "{{OBUL_API_KEY}}"
@@ -253,7 +253,7 @@ Find available APIs for a topic
 ```json
 {
   "method": "GET",
-  "url": "https://proxy.obul.ai/proxy/https://api.obul.dev/apis?category=<topic>",
+  "url": "https://proxy.obul.ai/proxy/https/api.obul.dev/apis?category=<topic>",
   "headers": {
     "x-obul-api-key": "{{OBUL_API_KEY}}"
   }
