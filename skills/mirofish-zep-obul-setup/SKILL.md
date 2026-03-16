@@ -1,6 +1,6 @@
 ---
 name: mirofish-zep-obul-setup
-description: 'USE THIS SKILL WHEN: setting up MiroFish with Obul LLM, Zep memory, and needed API keys. Covers installation, Python version issues, Obul/Zep key setup, and available models.'
+description: 'USE THIS SKILL WHEN: setting up MiroFish with Zep memory, Obul research services, and Minimax LLM. Covers installation, Python version issues, API key setup, and configuration.'
 metadata:
   openclaw:
     emoji: ⚙️
@@ -13,7 +13,7 @@ metadata:
 
 # MiroFish + Zep + Obul Setup Guide
 
-Complete setup guide for running MiroFish with Obul LLM (cheapest routing) and Zep memory.
+Complete setup guide for running MiroFish with Minimax LLM, Zep memory, and Obul research services.
 
 ---
 
@@ -82,7 +82,20 @@ uv sync --python 3.12.0
 
 ## 2. Get API Keys
 
-### Obul API Key (LLM Access)
+### Minimax API Key (LLM - Required)
+
+MiroFish uses Minimax for LLM. Get your key:
+
+1. Go to https://platform.minimax.io
+2. Sign up for an account
+3. Create an API key
+4. Copy and save the key
+
+**Note:** Obul LLM does NOT work with MiroFish because it requires header-based authentication which the OpenAI client doesn't support. Use direct Minimax instead.
+
+### Obul API Key (Research Services - Required)
+
+Obul provides research services used in the mirofish-predict workflow:
 
 1. Go to https://my.obul.ai
 2. Sign up with email or GitHub
@@ -90,9 +103,13 @@ uv sync --python 3.12.0
 4. Generate key: API Keys → Create New Key
 5. Copy and save the key
 
-**Pricing:** Pay-per-use, cheapest routing to GPT-4o, Claude, Minimax, etc.
+**Services available:**
+- Firecrawl (web scraping)
+- Twit (Twitter search)
+- Exa (neural web search)
+- Sybil (combined search + reasoning)
 
-### Zep API Key (Memory)
+### Zep API Key (Memory - Recommended)
 
 1. Go to https://app.getzep.com
 2. Sign up for free account
@@ -106,57 +123,22 @@ uv sync --python 3.12.0
 Edit `mirofish/.env`:
 
 ```bash
-# LLM via Obul (Minimax-M2.5)
-LLM_API_KEY=obul_live_YOUR_KEY_HERE
-LLM_BASE_URL=https://proxy.obul.ai/proxy/c
-LLM_MODEL_NAME=llm/minimax-m2.5
+# ===== LLM Configuration (Required) =====
+# Use direct Minimax - Obul LLM does NOT work with MiroFish
+LLM_API_KEY=sk-cp-YOUR_MINIMAX_KEY_HERE
+LLM_BASE_URL=https://api.minimax.io/v1
+LLM_MODEL_NAME=MiniMax-M2.5
 
-# Zep Memory
+# ===== Obul Services (Research) =====
+OBUL_API_KEY=obul_live_YOUR_OBUL_KEY_HERE
+
+# ===== Zep Memory (Recommended) =====
 ZEP_API_KEY=your_zep_key_here
 ```
 
-### Alternative: Direct Minimax (No Obul)
-
-```bash
-# Direct Minimax (your original key)
-LLM_API_KEY=sk-cp-...
-LLM_BASE_URL=https://api.minimax.io/v1
-LLM_MODEL_NAME=MiniMax-M2.5
-```
-
 ---
 
-## 4. Available LLM Models via Obul
-
-### List Available Models
-
-```bash
-curl -s https://proxy.obul.ai/proxy/c/llm | jq '.categories[].id'
-```
-
-### Current Available Models
-
-| Category ID | Model | Best For |
-|-------------|-------|----------|
-| `llm/minimax-m2.5` | MiniMax M2.5 | Cheap, large context (200K) |
-| `llm/gpt-4o` | GPT-4o | General purpose, best quality |
-| `llm/claude-sonnet-4-6` | Claude Sonnet | Reasoning, writing |
-| `llm/claude-opus-4-6` | Claude Opus | Best reasoning, long context |
-| `llm/deepseek-v3.2` | DeepSeek V3 | Cheap, strong coding |
-| `llm/gemini-3.1-pro` | Gemini Pro | Google's best model |
-| `llm/gemini-3.1-flash-lite` | Gemini Flash Lite | Cheapest option |
-| `llm/grok-4` | Grok 4 | X/Elon integration |
-
-### Check Pricing
-
-```bash
-curl -s https://proxy.obul.ai/proxy/c/llm/minimax-m2.5/_pricing | jq
-curl -s https://proxy.obul.ai/proxy/c/llm/gpt-4o/_pricing | jq
-```
-
----
-
-## 5. Start MiroFish
+## 4. Start MiroFish
 
 ```bash
 cd mirofish
@@ -169,16 +151,16 @@ Services:
 
 ---
 
-## 6. Test Setup
+## 5. Test Setup
 
-### Test Obul LLM
+### Test Minimax LLM
 
 ```bash
-curl -X POST "https://proxy.obul.ai/proxy/c/llm/minimax-m2.5/v1/chat/completions" \
+curl -X POST "https://api.minimax.io/v1/chat/completions" \
+  -H "Authorization: Bearer YOUR_MINIMAX_KEY" \
   -H "Content-Type: application/json" \
-  -H "x-obul-api-key: YOUR_OBUL_KEY" \
   -d '{
-    "model": "minimax-m2.5",
+    "model": "MiniMax-M2.5",
     "messages": [{"role": "user", "content": "Say hi"}]
   }'
 ```
@@ -191,9 +173,10 @@ curl -X POST "https://proxy.obul.ai/proxy/c/llm/minimax-m2.5/v1/chat/completions
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `OBUL_API_KEY` | Obul API key | Yes (for LLM) |
-| `LLM_BASE_URL` | LLM endpoint | Yes |
-| `LLM_MODEL_NAME` | Model category | Yes |
+| `LLM_API_KEY` | Minimax API key | Yes |
+| `LLM_BASE_URL` | https://api.minimax.io/v1 | Yes |
+| `LLM_MODEL_NAME` | MiniMax-M2.5 | Yes |
+| `OBUL_API_KEY` | Obul for research (Firecrawl, Twit, Exa, Sybil) | Yes |
 | `ZEP_API_KEY` | Zep memory | Recommended |
 
 ### Common Issues
@@ -202,16 +185,32 @@ curl -X POST "https://proxy.obul.ai/proxy/c/llm/minimax-m2.5/v1/chat/completions
 |-------|----------|
 | Python 3.13 errors | Use Python 3.11 or 3.12 |
 | tiktoken build failed | Use Python 3.12 with uv |
-| Invalid API key | Check OBUL_API_KEY format |
+| Invalid API key | Check key format |
 | 402 Payment Required | Add payment method in Obul |
-| 404 Model not found | Check category ID format |
+
+### What Obul is Used For
+
+In the mirofish-predict workflow, Obul provides:
+- **Firecrawl** - Web scraping for news articles
+- **Twit** - Twitter/X search for tweets
+- **Exa** - Neural web search
+- **Sybil** - Combined web + X search with reasoning
 
 ---
 
-## Migration: Original → Obul
+## Architecture Overview
 
-| Setting | Original | Obul |
-|---------|----------|------|
-| API Key | Minimax key | Obul key |
-| Base URL | api.minimax.io/v1 | proxy.obul.ai/proxy/c |
-| Model | MiniMax-M2.5 | llm/minimax-m2.5 |
+```
+┌─────────────────────────────────────────────────────────┐
+│                    mirofish-predict                      │
+├─────────────────────────────────────────────────────────┤
+│  Step 1: Polymarket CLI (find markets)                 │
+│  Step 2: Obul Services (research)                       │
+│    - Firecrawl → seed_news.md                          │
+│    - Twit → seed_twitter.md                           │
+│    - Exa/Sybil → seed_web.md                          │
+│  Step 3: MiroFish (predict)                            │
+│    - LLM: Minimax (direct, NOT Obul)                  │
+│    - Memory: Zep                                       │
+└─────────────────────────────────────────────────────────┘
+```
