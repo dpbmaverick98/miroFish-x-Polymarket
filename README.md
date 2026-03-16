@@ -13,7 +13,9 @@ Prediction market analysis with MiroFish simulation and Obul research services.
 
 ```bash
 # Give you LLM mirofish-zep-obul-setup skill
+
 https://github.com/dpbmaverick98/miroFish-x-Polymarket/blob/main/skills/mirofish-zep-obul-setup/SKILL.md
+
 # This will:
 #   - Install MiroFish with correct versions (Python 3.12) 
 #   - Configure Obul for research
